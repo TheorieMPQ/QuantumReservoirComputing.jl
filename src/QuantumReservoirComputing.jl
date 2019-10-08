@@ -1,6 +1,6 @@
 module QuantumReservoirComputing
 
-using DifferentialEquations, LightGraphs
+using DifferentialEquations, LightGraphs, LinearAlgebra
 
 include("input_handler.jl")
 export InputSignal
