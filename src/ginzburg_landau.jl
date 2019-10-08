@@ -15,7 +15,6 @@ mutable struct GLLayer{
     g::T
     D::T
 
-    ntrajs::Int
     ens_alg::Tensalg
     alg::Talg
     tinput::Float64
@@ -24,13 +23,12 @@ end
 
 function GLLayer(tinput::Real, toutput::Real, input_size::Int,
     γ::Number, Γ::Number, g::Number, G::SimpleGraph{Int64},
-    D::Number=0.0, W=missing, Win=missing; ntrajs::Int=1,
+    D::Number=0.0, W=missing, Win=missing;
     ens_alg::DiffEqBase.BasicEnsembleAlgorithm=EnsembleSerial(),
     alg::OrdinaryDiffEq.OrdinaryDiffEqCompositeAlgorithm=AutoTsit5(Rosenbrock23())
     )
     N = nv(G)
     @assert input_size > 0
-    @assert ntrajs > 0
     T = any(map(x->typeof(x)<:Complex, [γ, Γ, g, D])) ? ComplexF64 : Float64;
     _W = if ismissing(W)
         rand_couplings(N, T)
@@ -51,7 +49,7 @@ function GLLayer(tinput::Real, toutput::Real, input_size::Int,
         T,eltype(_Win),typeof(_Win),eltype(_W),typeof(_W),
         typeof(ens_alg),typeof(alg)
         }(input_size, _Win, G, _W, T(γ), T(Γ), T(g), T(D),
-          ntrajs, ens_alg, alg, Float64(tinput), Float64(toutput))
+          ens_alg, alg, Float64(tinput), Float64(toutput))
 end
 
 function rand_couplings(N::Int,T::DataType)
@@ -92,6 +90,37 @@ function (m::GLLayer)(u::InputSignal)
 
     ψ0 = zeros(ComplexF64, nv(m.G))
     pb = SDEProblem(dψ_det!, dψ_stoch!, ψ0, tspan)
-    sol = solve(EnsembleProblem(pb), m.alg, m.ens_alg; trajectories=m.ntrajs,dtmax=0.1u.Δt,save_at=0.1u.Δt)
-    [sol[j].u[end][i] for i in 1:length(sol[1].u[end]), j in 1:length(sol)]
+    sol = solve(pb, m.alg; dtmax=0.1u.Δt, save_at=0.1u.Δt)
+    [sol.u[end][i] for i in 1:length(sol.u[end])]
+end
+
+function (m::GLLayer)(u::AbstractArray{I}) where I<:InputSignal
+    tspan = (m.tinput, m.toutput)
+
+    function dψ_det!(dψ, ψ, i, t)
+        @inbounds dψ .= m.Win * u[i[1]](t)
+        for v in vertices(m.G)
+            Nv = neighbors(m.G, v)
+            @inbounds @views dψ[v] -= im .* 10dot(m.W[v,Nv], ψ[Nv])
+        end
+        @. @inbounds dψ += (m.γ - (m.Γ + im*m.g)*abs2(ψ)) * ψ
+
+        return dψ
+    end
+
+    function dψ_stoch!(dψ, ψ, i, t)
+        @. @inbounds dψ = m.D
+
+        return dψ
+    end
+
+    ψ0 = zeros(ComplexF64, nv(m.G))
+    pb = SDEProblem(dψ_det!, dψ_stoch!, ψ0, tspan, [1])
+    function prob_func(prob, i, repeat)
+        prob.p[1] = i
+        prob
+    end
+    Δt = minimum(map(x->x.Δt, u))
+    sol = solve(EnsembleProblem(pb, prob_func=prob_func), m.alg, m.ens_alg; trajectories=length(u), dtmax=0.1Δt, save_at=0.1Δt)
+    reshape([[sol[j].u[end][i] for i in 1:length(sol[1].u[end])] for j in eachindex(u)], size(u))
 end
