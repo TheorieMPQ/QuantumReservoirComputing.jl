@@ -1,0 +1,13 @@
+name = "QuantumReservoirComputing"
+uuid = "b30e0d2c-b786-4f26-b83a-6ae7ebd01348"
+authors = ["Zakari Denis", "Laboratoire MPQ"]
+version = "0.1.0"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
