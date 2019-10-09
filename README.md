@@ -127,6 +127,17 @@ Learning:
 ```
 i.e. roughly 1'30" of execution time on one tenth of the MNIST dataset.
 
+One can then build the full classifier by function composition as:
+```julia
+reservoir  = f2 ∘ cgle_layer ∘ f1
+classifier = (x->x-1) ∘ onecold ∘ m ∘ reservoir
+##
+
+i = rand(1:length(imgs_test)) # = 996
+labels_test[i]                # = 7
+classifier(imgs_test[i])      # = 7
+```
+
 ## References
 
 <b id="f1">[1]</b> A. Opala, S. Ghosh, T. C.H. Liew, and M. Matuszewski, Neuromorphic Computing in Ginzburg-Landau Polariton-Lattice Systems, [Phys. Rev. Applied 11, 064029 (2019)](https://doi.org/10.1103/PhysRevApplied.11.064029) [↩](#a1)
